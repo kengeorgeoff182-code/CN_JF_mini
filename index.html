@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>D1 Multi-Client Chat</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(19, 27, 48, 0.94);
+      --panel-2: rgba(27, 37, 65, 0.92);
+      --border: #2c385a;
+      --text: #eef2ff;
+      --muted: #9ca9c8;
+      --accent: #77a6ff;
+      --success: #70d6a0;
+      --danger: #ff8095;
+      --shadow: 0 24px 80px rgba(0,0,0,.35);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(90,126,255,.18), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(117,217,164,.10), transparent 30%),
+        var(--bg);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .shell {
+      width: min(1100px, 100%);
+      min-height: 680px;
+      display: grid;
+      grid-template-columns: 330px 1fr;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .sidebar {
+      padding: 28px;
+      border-right: 1px solid var(--border);
+      background: rgba(8, 13, 28, .38);
+    }
+    .brand { font-size: 21px; font-weight: 750; letter-spacing: -.02em; }
+    .subtitle { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .card {
+      margin-top: 28px;
+      padding: 18px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      border-radius: 16px;
+    }
+    label { display: block; margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+    input {
+      width: 100%;
+      padding: 12px 13px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      outline: none;
+      background: #0d152b;
+      color: var(--text);
+      font: inherit;
+    }
+    input:focus { border-color: var(--accent); }
+    .row { display: grid; grid-template-columns: 1fr 95px; gap: 10px; }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .primary { background: var(--accent); color: #081024; }
+    .secondary { margin-top: 10px; background: #17213c; color: var(--text); border: 1px solid var(--border); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .status {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #0d152b;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .status.online { color: var(--success); }
+    .status.error { color: var(--danger); }
+    .main { display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      padding: 22px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .room-title { font-weight: 700; }
+    .room-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .badge {
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .messages {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .message {
+      max-width: 78%;
+      padding: 11px 13px;
+      border-radius: 14px;
+      background: #17213c;
+      border: 1px solid #263354;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .message.mine { align-self: flex-end; background: #1d315e; border-color: #35538d; }
+    .message.info, .message.system { align-self: center; max-width: 88%; background: transparent; border-color: transparent; color: var(--muted); font-size: 12px; }
+    .message.error { border-color: rgba(255,128,149,.35); color: #ffc0c9; }
+    .sender { font-size: 11px; color: var(--accent); margin-bottom: 4px; font-weight: 700; }
+    .composer {
+      padding: 18px 24px;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr 110px;
+      gap: 10px;
+    }
+    .composer input { margin: 0; }
+    .hint { padding: 0 24px 18px; color: var(--muted); font-size: 11px; }
+    .hidden { display: none !important; }
+    @media (max-width: 850px) {
+      body { padding: 10px; }
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--border); }
+      .shell { min-height: calc(100vh - 20px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">D1 Multi-Client Chat</div>
+      <div class="subtitle">Browser interface for the TCP chat server.</div>
+
+      <div class="card">
+        <label for="username">Username</label>
+        <input id="username" maxlength="32" placeholder="e.g. Alice" autocomplete="off">
+
+        <label for="host">Chat server</label>
+        <div class="row">
+          <input id="host" value="127.0.0.1" placeholder="Server IP" autocomplete="off">
+          <input id="port" value="5000" inputmode="numeric" placeholder="Port" autocomplete="off">
+        </div>
+
+        <button id="connect" class="primary">CONNECT</button>
+        <button id="disconnect" class="secondary" disabled>DISCONNECT</button>
+        <div id="status" class="status">Offline</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="room-title">General Chat</div>
+          <div id="roomMeta" class="room-meta">Connect to begin</div>
+        </div>
+        <div id="badge" class="badge">OFFLINE</div>
+      </header>
+
+      <section id="messages" class="messages" aria-live="polite">
+        <div class="message info">Connect to the chat server to start exchanging messages.</div>
+      </section>
+
+      <div class="composer">
+        <input id="message" placeholder="Type a message…" autocomplete="off" disabled>
+        <button id="send" class="primary" disabled>SEND</button>
+      </div>
+      <div class="hint">Press Enter to send. Use <code>/quit</code> to close the TCP chat session.</div>
+    </main>
+  </div>
+
+  <script>
+    const state = { session: null, username: '', lastSeq: 0, timer: null, connected: false };
+    const $ = (id) => document.getElementById(id);
+
+    function setStatus(text, kind = '') {
+      $('status').textContent = text;
+      $('status').className = 'status ' + kind;
+    }
+
+    function setControls(connected) {
+      $('connect').disabled = connected;
+      $('disconnect').disabled = !connected;
+      $('message').disabled = !connected;
+      $('send').disabled = !connected;
+      $('username').disabled = connected;
+      $('host').disabled = connected;
+      $('port').disabled = connected;
+      state.connected = connected;
+      $('badge').textContent = connected ? 'ONLINE' : 'OFFLINE';
+      $('roomMeta').textContent = connected
+        ? `${state.username} · TCP chat session active`
+        : 'Connect to begin';
+    }
+
+    function clearMessages() {
+      $('messages').innerHTML = '';
+      state.lastSeq = 0;
+    }
+
+    function addMessage(raw) {
+      const parts = raw.split('|');
+      const type = parts[0] || 'INFO';
+      const item = document.createElement('div');
+      item.className = 'message ' + type.toLowerCase();
+
+      if (type === 'MSG') {
+        const sender = document.createElement('div');
+        sender.className = 'sender';
+        sender.textContent = parts[1] || 'User';
+        const body = document.createElement('div');
+        body.textContent = parts.slice(2).join('|');
+        item.append(sender, body);
+        if (parts[1] === state.username) item.classList.add('mine');
+      } else {
+        item.textContent = parts.slice(1).join('|') || raw;
+      }
+
+      $('messages').appendChild(item);
+      $('messages').scrollTop = $('messages').scrollHeight;
+    }
+
+    async function connect() {
+      const username = $('username').value.trim();
+      const server_host = $('host').value.trim() || '127.0.0.1';
+      const server_port = Number($('port').value);
+
+      if (!username) return setStatus('Enter a username.', 'error');
+      if (!Number.isInteger(server_port) || server_port < 1 || server_port > 65535) {
+        return setStatus('Enter a valid port.', 'error');
+      }
+
+      setStatus('Connecting…');
+      try {
+        const res = await fetch('/api/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, server_host, server_port })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Connection failed');
+        state.session = data.session;
+        state.username = data.username;
+        clearMessages();
+        setControls(true);
+        setStatus(`Connected to ${server_host}:${server_port}`, 'online');
+        poll();
+        state.timer = setInterval(poll, 500);
+        $('message').focus();
+      } catch (err) {
+        setStatus(err.message, 'error');
+        setControls(false);
+      }
+    }
+
+    async function poll() {
+      if (!state.session) return;
+      try {
+        const res = await fetch(`/api/messages?session=${encodeURIComponent(state.session)}&after=${state.lastSeq}`, { cache: 'no-store' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Polling failed');
+        for (const item of data.messages) {
+          state.lastSeq = Math.max(state.lastSeq, item.seq);
+          addMessage(item.message);
+        }
+        if (data.closed && state.connected) {
+          setStatus('Server disconnected.', 'error');
+          await disconnect(false);
+        }
+      } catch (err) {
+        setStatus(err.message, 'error');
+      }
+    }
+
+    async function sendMessage() {
+      if (!state.session) return;
+      const message = $('message').value.trim();
+      if (!message) return;
+      $('message').value = '';
+      try {
+        const res = await fetch('/api/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session: state.session, message })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Send failed');
+      } catch (err) {
+        setStatus(err.message, 'error');
+      }
+    }
+
+    async function disconnect(sendQuit = true) {
+      if (!state.session) return;
+      const oldSession = state.session;
+      state.session = null;
+      if (state.timer) clearInterval(state.timer);
+      state.timer = null;
+      if (sendQuit) {
+        try {
+          await fetch('/api/disconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session: oldSession })
+          });
+        } catch (_) {}
+      }
+      setControls(false);
+      setStatus('Offline');
+    }
+
+    $('connect').addEventListener('click', connect);
+    $('disconnect').addEventListener('click', () => disconnect(true));
+    $('send').addEventListener('click', sendMessage);
+    $('message').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') sendMessage();
+    });
+    $('username').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') connect();
+    });
+  </script>
+</body>
+</html>
